@@ -39,30 +39,36 @@ import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
 
+//設定クラスの宣言 クラス内のメソッドはspringコンテナの管理配下におかれアプリケーション内でのBeanの生成と管理を行う
 @Configuration
+//Spring Securityの設定を使うことを宣言
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Bean
-    @Order(1)
+
+    @Bean //Springコンテナによってインスタンス化、構成、管理されるオブジェクトである宣言
+    @Order(1) //Springコンテナ内でのBeanの読み込み順序を指定
+    //OAuth 2.0認証サーバーのセキュリティ設定を行うクラス
     public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http)
             throws Exception {
+        // OAuth 2.0認証サーバーのデフォルトセキュリティ設定を適用
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
+        // OpenID Connect 1.0のサポートを有効化する。
+        // IDトークンの発行やユーザー情報の取得など、OpenID Connectの機能が利用可能
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults());	// Enable OpenID Connect 1.0
-        http
-                // Redirect to the login page when not authenticated from the
-                // authorization endpoint
-                .exceptionHandling((exceptions) -> exceptions
+                .oidc(Customizer.withDefaults());
+        // 認証エンドポイントに未認証でアクセスした場合の例外処理を定義する
+        // 未認証のユーザーをログインページ（"/login"）にリダイレクトする
+        http.exceptionHandling((exceptions) -> exceptions
                         .defaultAuthenticationEntryPointFor(
                                 new LoginUrlAuthenticationEntryPoint("/login"),
                                 new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
                         )
                 )
-                // Accept access tokens for User Info and/or Client Registration
+                // リソースサーバーにおけるjwtの認証を行う
                 .oauth2ResourceServer((resourceServer) -> resourceServer
                         .jwt(Customizer.withDefaults()));
-
+        // Spring Securityにおける HttpSecurity オブジェクトの構築を完了し、構成された SecurityFilterChain オブジェクトを生成して返す
         return http.build();
     }
 
