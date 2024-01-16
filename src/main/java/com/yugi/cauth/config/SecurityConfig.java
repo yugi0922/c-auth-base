@@ -68,48 +68,73 @@ public class SecurityConfig {
                 // リソースサーバーにおけるjwtの認証を行う
                 .oauth2ResourceServer((resourceServer) -> resourceServer
                         .jwt(Customizer.withDefaults()));
-        // Spring Securityにおける HttpSecurity オブジェクトの構築を完了し、構成された SecurityFilterChain オブジェクトを生成して返す
+        // HttpSecurity オブジェクトの構築を完了し、構成された SecurityFilterChain オブジェクトを生成して返す
         return http.build();
     }
 
     @Bean
     @Order(2)
+    //WEBアプリケーション全般のセキュリティ設定を行うクラス
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http)
             throws Exception {
+        // すべてのHTTPリクエストに対して認証を必要とすることを指定
         http
                 .authorizeHttpRequests((authorize) -> authorize
                         .anyRequest().authenticated()
                 )
                 // Form login handles the redirect to the login page from the
                 // authorization server filter chain
+                // 認証サーバーフィルターチェーンからログインページへのリダイレクトを処理する
                 .formLogin(Customizer.withDefaults());
-
+        // HttpSecurity オブジェクトの構築を完了し、構成された SecurityFilterChain オブジェクトを生成して返す
         return http.build();
     }
 
     @Bean
     public UserDetailsService userDetailsService() {
+        // ユーザーの認証情報を設定するためのビルダー
         UserDetails userDetails = User.withDefaultPasswordEncoder()
                 .username("user")
                 .password("password")
                 .roles("USER")
                 .build();
-
+        // メモリ上にユーザー情報を保持する
         return new InMemoryUserDetailsManager(userDetails);
     }
 
     @Bean
+    // OAuth 2.0/OpenID Connectクライアント設定をし、それをアプリケーションメモリに保存する
     public RegisteredClientRepository registeredClientRepository() {
+        // 新しいクライアントインスタンスを作成し、一意のIDを割り当てる
         RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                // クライアントのIDを設定。OAuth2.0プロセスでクライアントを識別するため
                 .clientId("oidc-client")
+                //　クライアントのパスワードを設定（noopはパスワードエンコードを使用しないことを意味する）
                 .clientSecret("{noop}secret")
+                //　HTTP Basic認証を用いてクライアントIDとクライアントシークレットを認証サーバーに送信
+                // HTTP Basic認証: クライアントIDとクライアントシークレットがコロン（:）で連結され、
+                // Base64エンコードされた後、HTTPリクエストのAuthorizationヘッダにBasicスキーマと共に追加される
+                // クライアント認証のプロセス
+                // リクエストの準備: クライアントは、クライアントIDとクライアントシークレットをコロンで連結し、Base64でエンコードする（例: client_id:client_secret -> Base64エンコード）。
+                // 認証ヘッダの追加: エンコードされた文字列は、HTTPリクエストのAuthorizationヘッダにBasic [エンコードされた文字列]の形式で追加される。
+                // 認証サーバーはこのヘッダを受け取り、Base64デコードを行ってクライアントIDとシークレットを取り出し、保存されている情報と照合してクライアントを認証する
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                // クライアントがアクセストークンを取得するための方法を定めている
+                // ユーザーのブラウザを通じて認証と認可を行う
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                // 有効期限が切れたアクセストークンを新しいトークンと交換するために使用される
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                // ログインして認証を完了した後に、ユーザーがリダイレクトされる場所を指定
                 .redirectUri("http://127.0.0.1:8080/login/oauth2/code/oidc-client")
+                // ログアウトした後にリダイレクトされるURIを指定するための設定
                 .postLogoutRedirectUri("http://127.0.0.1:8080/")
+                // アプリケーションがユーザーのアカウントにアクセスして行うことができる操作の範囲を指定する
+                // 基本的なプロファイル情報（ID,ユーザー名）へのアクセスを要求する
                 .scope(OidcScopes.OPENID)
+                // 詳細なプロファイル情報（名前、社員）へのアクセスを要求する
+                //　Emailを指定するとユーザーのメールアドレスへのアクセスを要求する
                 .scope(OidcScopes.PROFILE)
+                // 明示的な同意を求める画面を表示する設定
                 .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
                 .build();
 
