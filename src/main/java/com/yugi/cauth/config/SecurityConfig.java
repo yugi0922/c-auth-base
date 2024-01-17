@@ -143,17 +143,25 @@ public class SecurityConfig {
 
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
+        // RSA鍵ペアの生成
         KeyPair keyPair = generateRsaKey();
+        // 生成された鍵ペアから公開鍵を取得する
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
+        // 生成された鍵ペアから秘密鍵を取得する
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
+        // RSA鍵ビルダーの初期化
         RSAKey rsaKey = new RSAKey.Builder(publicKey)
                 .privateKey(privateKey)
+                //ユニークな識別子（KeyID）をRSAKeyに割り当てる
                 .keyID(UUID.randomUUID().toString())
                 .build();
+        //作成したRSAKeyを含む新しいJWKSetを作成する。JWKSetは一つ以上のJWKを含むことができる
         JWKSet jwkSet = new JWKSet(rsaKey);
+        //作成したJWKSetをImmutableJWKSetにラップして返却
         return new ImmutableJWKSet<>(jwkSet);
     }
 
+    //RSA暗号化アルゴリズムを用いて、2048ビットの鍵長でKeyPair（公開鍵と秘密鍵のペア）を生成するメソッド
     private static KeyPair generateRsaKey() {
         KeyPair keyPair;
         try {
