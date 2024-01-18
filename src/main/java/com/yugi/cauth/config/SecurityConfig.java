@@ -165,8 +165,11 @@ public class SecurityConfig {
     private static KeyPair generateRsaKey() {
         KeyPair keyPair;
         try {
+            // RSA暗号アルゴリズムを使用する
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+            // 鍵ペアジェネレータを2048ビットの鍵長で初期化する
             keyPairGenerator.initialize(2048);
+            // RSA鍵ペア（公開鍵と秘密鍵のペア）を生成する
             keyPair = keyPairGenerator.generateKeyPair();
         }
         catch (Exception ex) {
