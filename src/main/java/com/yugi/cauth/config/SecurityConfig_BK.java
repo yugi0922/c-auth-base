@@ -49,7 +49,8 @@ public class SecurityConfig {
     @Bean //Springコンテナによってインスタンス化、構成、管理されるオブジェクトである宣言
     @Order(1) //Springコンテナ内でのBeanの読み込み順序を指定
     //OAuth 2.0認証サーバーのセキュリティ設定を行うクラス
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http)
+            throws Exception {
         // OAuth 2.0認証サーバーのデフォルトセキュリティ設定を適用
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
         // OpenID Connect 1.0のサポートを有効化する。
