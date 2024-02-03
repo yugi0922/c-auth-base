@@ -1,12 +1,10 @@
 package com.yugi.cauth.config;
 
-
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
-import java.util.UUID;
-
+import com.nimbusds.jose.jwk.JWKSet;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.proc.SecurityContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -32,116 +30,106 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
-import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
-import com.nimbusds.jose.jwk.source.JWKSource;
-import com.nimbusds.jose.proc.SecurityContext;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.interfaces.RSAPublicKey;
+import java.util.UUID;
 
-//設定クラスの宣言 クラス内のメソッドはspringコンテナの管理配下におかれアプリケーション内でのBeanの生成と管理を行う
 @Configuration
-//Spring Securityの設定を使うことを宣言
 @EnableWebSecurity
 public class SecurityConfig {
 
-
-    @Bean //Springコンテナによってインスタンス化、構成、管理されるオブジェクトである宣言
-    @Order(1) //Springコンテナ内でのBeanの読み込み順序を指定
-    //OAuth 2.0認証サーバーのセキュリティ設定を行うクラス
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        // OAuth 2.0認証サーバーのデフォルトセキュリティ設定を適用
+    @Bean
+    @Order(1)
+    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http)
+            throws Exception {
         OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-        // OpenID Connect 1.0のサポートを有効化する。
-        // IDトークンの発行やユーザー情報の取得など、OpenID Connectの機能が利用可能
         http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-                .oidc(Customizer.withDefaults());
-        // 認証エンドポイントに未認証でアクセスした場合の例外処理を定義する
-        // 未認証のユーザーをログインページ（"/login"）にリダイレクトする
-        http.exceptionHandling((exceptions) -> exceptions
+                .oidc(Customizer.withDefaults());	// Enable OpenID Connect 1.0
+        http
+                // Redirect to the login page when not authenticated from the
+                // authorization endpoint
+                .exceptionHandling((exceptions) -> exceptions
                         .defaultAuthenticationEntryPointFor(
                                 new LoginUrlAuthenticationEntryPoint("/login"),
                                 new MediaTypeRequestMatcher(MediaType.TEXT_HTML)
                         )
                 )
-                // リソースサーバーにおけるjwtの認証を行う
-                .oauth2ResourceServer((resourceServer) -> resourceServer
-                        .jwt(Customizer.withDefaults()));
-        // HttpSecurity オブジェクトの構築を完了し、構成された SecurityFilterChain オブジェクトを生成して返す
-        return http.build();
+                // Accept access tokens for User Info and/or Client Registration
+                .oauth2ResourceServer((oauth2) -> oauth2.jwt(Customizer.withDefaults()));
+
+        return http.cors(Customizer.withDefaults()).build();
     }
 
     @Bean
     @Order(2)
-    //WEBアプリケーション全般のセキュリティ設定を行うクラス
     public SecurityFilterChain defaultSecurityFilterChain(HttpSecurity http)
             throws Exception {
-        // すべてのHTTPリクエストに対して認証を必要とすることを指定
         http
                 .authorizeHttpRequests((authorize) -> authorize
-                        .anyRequest().authenticated()
+                        .requestMatchers("/private/resource").authenticated()  // "/private/resource"へのリクエストにのみ認証を要求
+                        .anyRequest().permitAll()
                 )
                 // Form login handles the redirect to the login page from the
                 // authorization server filter chain
-                // 認証サーバーフィルターチェーンからログインページへのリダイレクトを処理する
                 .formLogin(Customizer.withDefaults());
-        // HttpSecurity オブジェクトの構築を完了し、構成された SecurityFilterChain オブジェクトを生成して返す
-        return http.build();
+
+        return http.cors(Customizer.withDefaults()).build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        CorsConfiguration config = new CorsConfiguration();
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        config.addAllowedOrigin("http://localhost:3000");
+        config.setAllowCredentials(true);
+        source.registerCorsConfiguration("/**", config);
+        return source;
     }
 
     @Bean
     public UserDetailsService userDetailsService() {
+        //TODO デバックコメント
+        System.out.println("userDetailsService");
         // ユーザーの認証情報を設定するためのビルダー
         UserDetails userDetails = User.withDefaultPasswordEncoder()
-                .username("user")
+                .username("suwa")
                 .password("password")
-                .roles("USER")
+                .roles("ADMIN")
                 .build();
         // メモリ上にユーザー情報を保持する
         return new InMemoryUserDetailsManager(userDetails);
     }
 
     @Bean
-    // OAuth 2.0/OpenID Connectクライアント設定をし、それをアプリケーションメモリに保存する
     public RegisteredClientRepository registeredClientRepository() {
-        // 新しいクライアントインスタンスを作成し、一意のIDを割り当てる
-        RegisteredClient oidcClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                // クライアントのIDを設定。OAuth2.0プロセスでクライアントを識別するため
-                .clientId("oidc-client")
-                //　クライアントのパスワードを設定（noopはパスワードエンコードを使用しないことを意味する）
-                .clientSecret("{noop}secret")
-                //　HTTP Basic認証を用いてクライアントIDとクライアントシークレットを認証サーバーに送信
-                // HTTP Basic認証: クライアントIDとクライアントシークレットがコロン（:）で連結され、
-                // Base64エンコードされた後、HTTPリクエストのAuthorizationヘッダにBasicスキーマと共に追加される
-                // クライアント認証のプロセス
-                // リクエストの準備: クライアントは、クライアントIDとクライアントシークレットをコロンで連結し、Base64でエンコードする（例: client_id:client_secret -> Base64エンコード）。
-                // 認証ヘッダの追加: エンコードされた文字列は、HTTPリクエストのAuthorizationヘッダにBasic [エンコードされた文字列]の形式で追加される。
-                // 認証サーバーはこのヘッダを受け取り、Base64デコードを行ってクライアントIDとシークレットを取り出し、保存されている情報と照合してクライアントを認証する
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-                // クライアントがアクセストークンを取得するための方法を定めている
-                // ユーザーのブラウザを通じて認証と認可を行う
+        RegisteredClient publicClient = RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId("public-client")
+                .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-                // 有効期限が切れたアクセストークンを新しいトークンと交換するために使用される
-                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-                // ログインして認証を完了した後に、ユーザーがリダイレクトされる場所を指定
-                .redirectUri("http://127.0.0.1:8080/login/oauth2/code/oidc-client")
-                // ログアウトした後にリダイレクトされるURIを指定するための設定
-                .postLogoutRedirectUri("http://127.0.0.1:8080/")
-                // アプリケーションがユーザーのアカウントにアクセスして行うことができる操作の範囲を指定する
-                // 基本的なプロファイル情報（ID,ユーザー名）へのアクセスを要求する
+                .redirectUri("http://localhost:3000/callback")
                 .scope(OidcScopes.OPENID)
-                // 詳細なプロファイル情報（名前、社員）へのアクセスを要求する
-                //　Emailを指定するとユーザーのメールアドレスへのアクセスを要求する
-                .scope(OidcScopes.PROFILE)
-                // 明示的な同意を求める画面を表示する設定
-                .clientSettings(ClientSettings.builder().requireAuthorizationConsent(true).build())
+                .clientSettings(ClientSettings.builder()
+                        .requireAuthorizationConsent(false)
+                        .requireProofKey(true)
+                        .build()
+                )
                 .build();
 
-        return new InMemoryRegisteredClientRepository(oidcClient);
+        return new InMemoryRegisteredClientRepository(publicClient);
     }
 
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
+        //TODO デバックコメント
+        System.out.println("jwkSource");
         // RSA鍵ペアの生成
         KeyPair keyPair = generateRsaKey();
         // 生成された鍵ペアから公開鍵を取得する
@@ -162,6 +150,8 @@ public class SecurityConfig {
 
     //RSA暗号化アルゴリズムを用いて、2048ビットの鍵長でKeyPair（公開鍵と秘密鍵のペア）を生成するメソッド
     private static KeyPair generateRsaKey() {
+        //TODO デバックコメント
+        System.out.println("generateRsaKey");
         KeyPair keyPair;
         try {
             // RSA暗号アルゴリズムを使用する
@@ -180,6 +170,8 @@ public class SecurityConfig {
     @Bean
     //受信したJWTを出コードして信頼できるものであるかを確認する
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
+        //TODO デバックコメント
+        System.out.println("jwkSource");
         return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
     }
 
@@ -187,7 +179,8 @@ public class SecurityConfig {
     //OAuth 2.0認証サーバーの設定を生成するためのメソッド
     //AuthorizationServerSettingsオブジェクトを生成し、それをアプリケーションの他の部分で再利用可能な形で提供する
     public AuthorizationServerSettings authorizationServerSettings() {
+        //TODO デバックコメント
+        System.out.println("authorizationServerSettings");
         return AuthorizationServerSettings.builder().build();
     }
-
 }

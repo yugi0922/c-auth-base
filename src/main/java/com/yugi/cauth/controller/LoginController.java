@@ -9,6 +9,8 @@ public class LoginController {
 
     @GetMapping("/login")
     public String login(Model model) {
+        //TODO デバックコメント
+        System.out.println("LoginController");
         // ログインページのビューを返します（ログイン処理はSpring Securityが担当）
         // ここにホームページに表示するデータを追加できる
         model.addAttribute("message", "Welcome to the Home Page!");
